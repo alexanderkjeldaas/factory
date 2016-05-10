@@ -1,0 +1,1101 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>Type safe, composable webservices APIs in Haskell</title>
+
+		<meta name="author" content="Alexander Kjeldaas">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/reveal.js/3.0.0/css/reveal.css">
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/reveal.js/3.0.0/css/theme/black.css" id="theme">
+
+		<!-- Code syntax highlighting -->
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/reveal.js/3.0.0/lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+		<link rel="stylesheet" href="./bower_components/mermaid/dist/mermaid.css">
+		<link rel="stylesheet" href="./bower_components/mermaid/dist/mermaid.forest.css">
+    <script src="./bower_components/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+
+	</head>
+
+	<body>
+
+		<div class="reveal">
+
+			<!-- Any section element inside of this container is displayed as a slide -->
+			<div class="slides">
+	      <section>
+<!--	        <h3 class="inverted" style="padding-top: 1em"><img src="https://spark.apache.org/images/spark-logo.png" style="border:0"></h3> -->
+	        <div style="padding-top: 2em">
+            <a href="https://pages.github.io/alexander-kjeldaas/slides/">
+              pages.github.io/alexander-kjeldaas/slides/
+                <br>
+                git@github.com:alexanderkjeldaas/slides.git
+                <br>
+                git@github.com:alexanderkjeldaas/factory.git
+            </a></br />
+	          Alexander Kjeldaas, JIRA monkey, SPT Tracking<br />
+	          alexander@schibsted.com<br />
+	          <br />
+	        </div>
+	      </section>
+
+        <section>
+            <section>
+                <h2>The powers that be wants a web service</h2>
+                <img width=400 height=600 src="images/sverre.jpeg">
+            </section>
+
+            <section>
+                <h2>So you start coding it up..</h2>
+                    <pre><code class="scala">
+name := "rest"
+
+version := "1.0"
+
+scalaVersion := "2.10.2"
+
+libraryDependencies ++= Seq(
+    "io.spray" % "spray-can" % "1.1-M8",
+    "io.spray" % "spray-http" % "1.1-M8",
+    "io.spray" % "spray-routing" % "1.1-M8",
+    "com.typesafe.akka" %% "akka-actor" % "2.1.4",
+    "com.typesafe.akka" %% "akka-slf4j" % "2.1.4",
+    "com.typesafe.slick" %% "slick" % "1.0.1",
+    "mysql" % "mysql-connector-java" % "5.1.25",
+    "net.liftweb" %% "lift-json" % "2.5.1",
+    "ch.qos.logback" % "logback-classic" % "1.0.13"
+)
+
+resolvers ++= Seq(
+    "Sonatype snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/",
+    "Sonatype releases"  at "https://oss.sonatype.org/content/repositories/releases/"
+)
+            </code></pre>
+          </section>
+
+            <section>
+                <h2>So you start coding it up..</h2>
+                    <pre><code class="scala">
+addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.0-SNAPSHOT")
+
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.9.0")
+            </code></pre>
+          </section>
+            <section>
+                <h2>So you start coding it up..</h2>
+                    <pre><code class="scala">
+
+akka {
+  loglevel = DEBUG
+  event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+}
+
+service {
+    host = "localhost"
+    port = 8080
+}
+
+db {
+    host = "localhost"
+    port = 3306
+    name = "rest"
+    user = "root"
+    password = null
+}
+            </code></pre>
+          </section>
+
+            <section>
+                <h2>So you start coding it up..</h2>
+                    <pre><code class="scala">
+case class Customer(id: Option[Long],
+                    firstName: String,
+                    lastName: String,
+                    birthday: Option[java.util.Date])
+
+            </code></pre>
+          </section>
+            <section>
+                <h2>So you start coding it up..</h2>
+                    <pre><code class="scala">
+import scala.slick.driver.MySQLDriver.simple._
+
+object Customers extends Table[Customer]("customers") {
+
+  def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+  def firstName = column[String]("first_name")
+  def lastName = column[String]("last_name")
+  def birthday = column[java.util.Date]("birthday", O.Nullable)
+
+  def * = id.? ~ firstName ~ lastName ~ birthday.? <> (Customer, Customer.unapply _)
+
+  implicit val dateTypeMapper = MappedTypeMapper.base[java.util.Date, java.sql.Date](
+  {
+    ud => new java.sql.Date(ud.getTime)
+  }, {
+    sd => new java.util.Date(sd.getTime)
+  })
+
+  val findById = for {
+    id <- Parameters[Long]
+    c <- this if c.id is id
+  } yield c
+}
+
+            </code></pre>
+          </section>
+            <section>
+                <h2>So you start coding it up..</h2>
+                    <pre><code class="scala">
+...
+path("customer" / LongNumber) {
+customerId =>
+  put {
+    entity(Unmarshaller(MediaTypes.`application/json`) {
+      case httpEntity: HttpEntity =>
+        read[Customer](httpEntity.asString(HttpCharsets.`UTF-8`))
+    }) {
+      customer: Customer =>
+        ctx: RequestContext =>
+          handleRequest(ctx) {
+            log.debug("Updating customer with id %d: %s".format(customerId, customer))
+            customerService.update(customerId, customer)
+          }
+    }
+  } ~
+    delete {
+      ctx: RequestContext =>
+        handleRequest(ctx) {
+          log.debug("Deleting customer with id %d".format(customerId))
+          customerService.delete(customerId)
+        }
+    } ~
+    get {
+      ctx: RequestContext =>
+        handleRequest(ctx) {
+          log.debug("Retrieving customer with id %d".format(customerId))
+          customerService.get(customerId)
+        }
+    }
+}
+            </code></pre>
+          </section>
+            <section>
+                <h2>So you start coding it up..</h2>
+                    <pre><code class="scala">
+...
+object Boot extends App with Configuration {
+
+  // create an actor system for application
+  implicit val system = ActorSystem("rest-service-example")
+
+  // create and start rest service actor
+  val restService = system.actorOf(Props[RestServiceActor], "rest-endpoint")
+
+  // start HTTP server with rest service actor as a handler
+  IO(Http) ! Http.Bind(restService, serviceHost, servicePort)
+}
+            </code></pre>
+          </section>
+          <section>
+              <h2>And you realized you have no way to guarantee..</h2>
+              <ul>
+                  <li>Client code is correct</li>
+                  <li>Documentation is correct</li>
+              </ul>
+          </section>
+          <section>
+              <h2>And you haven't started on</h2>
+              <ul>
+                  <li>Mocks</li>
+                  <li>Tests</li>
+              </ul>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>APIs - we want to get from this situation</h2>
+            <ul>
+              <li>Keep documentation separate from code.</li>
+              <li>Updating clients stubs for APIs.</li>
+              <li>Updating mocks</li>
+              <li>Generating test data for APIs</li>
+              <li>Failures not caught by testing/compiler</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>..to</h2>
+            <ul>
+              <li>Keep documentation with code.</li>
+              <li>Auto-generate clients for APIs.</li>
+              <li>Auto-generate mocks</li>
+              <li>Auto-generate test data for APIs</li>
+              <li>If it compiles, it works.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>Use a modeling language!</h2>
+            (now you have two problems)
+          </section>
+
+          <section>
+            <h2>What modeling language?</h2>
+            <ul>
+              <li>Swagger</li>
+              <li>API Blueprint</li>
+              <li>RAML</li>
+              <li>modeling <b>language?</b>..or Haskell?</li>
+            </ul>
+          </section>
+
+          <section>
+              <h2>What you don't get with Swagger ++</h2>
+              <ul>
+                  <li>API -> API functions</li>
+                  <li>such as a CRUD function?</li>
+                  <li>or introspection/discovery of the API (add API docs to API)</li>
+                  <li>Javascript code served in the API itself?</li>
+                  <li>..you'll love all the tools (maybe)!
+                      <ul>
+                          <li>Code generation of javascript code</li>
+                          <li>Code generation of server code</li>
+                          <li>Code generation of documentation</li>
+                          <li>Something to get the above served in the server</li>
+                          <li>Build rules to orchestrate it all</li>
+                      </ul>
+                  </li>
+              </ul>
+          </section>
+
+          <section>
+            <h2>Haskell</h2>
+            <ul>
+              <li>Purely functional programming language</li>
+              <li>Declarative</li>
+              <li>Statically typed</li>
+              <li>Type inference</li>
+              <li>Advanced type system</li>
+            </ul>
+          </section>
+
+          <section>
+              <h2>"The right tool for the job"</h2>
+              <ul>
+                  <li>Is it an excuse or a good argument?</li>
+                  <li>Declarative = Good</li>
+                  <li>BUT, abstraction = Good as well!</li>
+                  <li>"Use a declarative language" - Haskell is declarative<br>
+                      (controlled side effects - the dreaded Monad)</li>
+                  <li>"Declarative" != Useless type system</li>
+                  <li>"Separate tool for the job"
+                      <ul>
+                          <li>We love not being able to express anything</li>
+                          <li>.. and the resulting bug reports from frustrated users</li>
+                          <li>.. that we can close as out of scope?</li>
+                      </ul>
+                  </li>
+              </ul>
+          </section>
+
+          <section>
+              <h2>The amazing haskell eco-system</h2>
+              <p>Compose this:</p>
+              <ul>
+                  <li>If it exists, it compiles (stackage)<br>
+                      Daily global build (unlike any other language?)<br>
+                      Never see a compile error in other people's code. Ever.
+                  </li>
+                  <li>If it compiles, it runs (haskell)<br>
+                      Advanced type system
+                  </li>
+                  <li>If it runs, it deploys (stack + docker)<br>
+                      stack build tool docker support, stackage daily docker images
+                  </li>
+              </ul>
+          </section>
+
+          <section>
+              <h2>Tools we will use</h2>
+              <ul>
+                  <li>servant - type-level web APIs</li>
+                  <li>servant example from Taylor Fausak &lt;taylor@fausak.me&gt;</li>
+                  <li>The Glasgow Haskell Compiler</li>
+                  <li>stackage - "single repo" global build</li>
+                  <li>stack - build tool</li>
+                  <li>docker</li>
+                  <li>docker-compose</li>
+              </ul>
+          </section>
+
+          <section>
+            <pre><code class="haskell">
+{- |
+    This is the full API, including documentation and client code. It is
+    separate from the 'documentedAPI' so that we don't have to generate
+    documentation for the documentation itself.
+-}
+type API
+    = GetPresentation
+      :<|> GetMarkdown
+      :<|> GetJavaScript
+      :<|> GetAngular
+      :<|> GetAngularService
+      :<|> GetSwagger
+      :<|> DocumentedAPI
+            </code></pre>
+          </section>
+        </section>
+        <section>
+            <pre><code class="haskell">
+{- |
+    This is the part of the API we want to document and create client code for.
+-}
+type DocumentedAPI
+    = ListWidgets
+    :<|> CreateWidget
+    :<|> ShowWidget
+    :<|> UpdateWidget
+    :<|> DestroyWidget
+            </code></pre>
+        </section>
+        <section>
+            <pre><code class="haskell">
+{- |
+    A widget. Who knows what it does.
+-}
+data Widget = Widget
+    { name :: Text.Text -- ^ The name of this widget.
+    } deriving (Aeson.FromJSON, Aeson.ToJSON, Eq,
+                GHC.Generic, Read, Show, Swagger.ToSchema)
+            </code></pre>
+        </section>
+        <section>
+            <pre><code class="haskell">
+{- |
+    Get all of the widgets.
+-}
+type ListWidgets = "widgets"
+    :> Servant.Get '[Servant.JSON] [Widget.Widget]
+
+{- |
+    Create a new widget.
+-}
+type CreateWidget = "widgets"
+    :> Servant.ReqBody '[Servant.JSON] Widget.Widget
+    :> Servant.Post '[Servant.JSON] Widget.Widget
+
+{- |
+    Try to get a particular widget.
+-}
+type ShowWidget = "widget"
+    :> Capture "id" Int
+    :> Servant.Get '[Servant.JSON] Widget.Widget
+
+{- |
+    Update an existing widget.
+-}
+type UpdateWidget = "widget"
+    :> Capture "id" Int
+    :> Servant.ReqBody '[Servant.JSON] Widget.Widget
+    :> Servant.Put '[Servant.JSON] Widget.Widget
+
+{- |
+    Destroy an existing widget.
+-}
+type DestroyWidget = "widget"
+    :> Capture "id" Int
+    :> Servant.Delete '[Servant.JSON] Widget.Widget
+            </code></pre>
+        </section>
+
+        <section>
+            <h2>Serve it</h2>
+           <pre><code class="haskell">
+{- |
+    This is the actual implementation of the server.
+-}
+server :: Servant.Server API.API
+server
+    = getPresentation
+    :<|> getMarkdown
+    :<|> getJQuery
+    :<|> getAngular
+    :<|> getAngularService
+    :<|> getSwagger
+    :<|> listWidgets
+    :<|> createWidget
+    :<|> showWidget
+    :<|> updateWidget
+    :<|> destroyWidget
+
+            </code></pre>
+        </section>
+        <section>
+            <h2>Serve it - widget implementation</h2>
+           <pre><code class="haskell">
+{- |
+    Get all of the widgets. See 'API.ListWidgets'.
+-}
+listWidgets :: Handler [Widget.Widget]
+listWidgets = do
+    widgets <- IO.liftIO DB.getWidgets
+    return widgets
+
+{- |
+    Create a new widget. See 'API.CreateWidget'.
+-}
+createWidget :: Widget.Widget -> Handler Widget.Widget
+createWidget widget = do
+    IO.liftIO (DB.createWidget widget)
+    return widget
+
+{- |
+    Try to get a particular widget. See 'API.ShowWidget'.
+-}
+showWidget :: Int -> Handler Widget.Widget
+showWidget number = withWidget number $ \ widget -> do
+    return widget
+            </code></pre>
+        </section>
+        <section>
+            <h2>Serve it - other stuff</h2>
+           <pre><code class="haskell">
+getPresentation :: Wai.Application
+getPresentation = StaticFiles.serveDirectory "/var/www"
+
+{- |
+    Get the Markdown documentation. See 'Markdown.markdown'.
+-}
+getMarkdown :: Handler Text.Text
+getMarkdown = return (Text.pack Markdown.markdown)
+
+{- |
+    Get the JavaScript client code. See 'JavaScript.javaScript'.
+-}
+getJQuery :: Handler Text.Text
+getJQuery = return JavaScript.javaScriptJQuery
+
+getAngular :: Handler Text.Text
+getAngular = return JavaScript.javaScriptAngular
+
+getAngularService :: Handler Text.Text
+getAngularService = return JavaScript.javaScriptAngularService
+
+getSwagger :: Handler Text.Text
+getSwagger = return Swagger.swaggerDoc
+            </code></pre>
+        </section>
+
+        <section>
+            <h2>The endpoints</h2>
+            <ul>
+                <li>
+            <a href="http://asdf12341234.detach.me:800/javascript">http://factorydemo/javascript</a>
+                </li>
+                <li>
+            <a href="http://asdf12341234.detach.me:800/angular">http://factorydemo/angular</a>
+                </li>
+                <li>
+            <a href="http://asdf12341234.detach.me:800/angular-service">http://factorydemo/angular-service Service</a>
+                </li>
+                <li>
+            <a href="http://asdf12341234.detach.me:800/markdown">http://factorydemo/markdown</a>
+                </li>
+                <li>
+            <a href="http://asdf12341234.detach.me:800/swagger">http://factorydemo/swagger</a>
+                </li>
+            </ul>
+        </section>
+        <section>
+            <h2>Client code - Haskell</h2>
+            <p>We just specify the types we want - but it's all optional</p>
+           <pre><code class="haskell">
+listWidgets :: HTTP.Manager -> Servant.BaseUrl -> Action [Widget.Widget]
+createWidget :: Widget.Widget -> HTTP.Manager -> Servant.BaseUrl -> Action Widget.Widget
+showWidget :: Int -> HTTP.Manager -> Servant.BaseUrl -> Action Widget.Widget
+updateWidget :: Int -> Widget.Widget -> HTTP.Manager -> Servant.BaseUrl -> Action Widget.Widget
+destroyWidget :: Int -> HTTP.Manager -> Servant.BaseUrl -> Action Widget.Widget
+
+(   listWidgets
+    :<|> createWidget
+    :<|> showWidget
+    :<|> updateWidget
+    :<|> destroyWidget
+    ) = Servant.client API.documentedAPI
+            </code></pre>
+        </section>
+
+        <!--
+
+        </secti>
+              <li>Synchronize consumer  documentation separate from code.</li>
+              <li>Generate client stubs (in Haskell, JS, Angular).</li>
+              <li>Auto-update documentation.</li>
+              <li>Auto-update documentation.</li>
+              <li>..using the spark framework</li>
+              <li>..on SPT infrastructure</li>
+              <li>..on Amazon</li>
+            </ul>
+            <h2>Why types for APIs?</h2>
+            <ul>
+              <li>Generate API reference documentation (markdown, swagger).</li>
+              <li>Generate client stubs (in Haskell, JS, Angular).</li>
+              <li>Auto-update documentation.</li>
+              <li>Auto-update documentation.</li>
+              <li>..using the spark framework</li>
+              <li>..on SPT infrastructure</li>
+              <li>..on Amazon</li>
+            </ul>
+          </section>
+          <section>
+            <h2>Goal #2 (if we make it)</h2>
+            <ul>
+              <li>Get you familiarized with the spt/schibsted repo.</li>
+              <li>..in order to access common libraries.</li>
+            </ul>
+          </section>
+        </section>
+	      
+
+	      <section>
+	        <h2>What is spark?</h2>
+	        <ul>
+	          <li>Map Reduce ++</li>
+	          <li>Data structure is Resilient Distributed Dataset (RDD)</li>
+            <li>Pure functional ideal, knows how to re-create a failed partition by re-running code.</li>
+            <li>Automatically figures out mapping and shuffling steps.</li>
+            <li>Languages: scala, python, and java</li>
+            <li>Backing company: Databricks</li>
+            <li>Umbrella: Apache</li>
+            <li>Current version: 1.5.0</li>
+	        </ul>
+	      </section>
+
+        <section>
+          <h2>What is EMR?</h2>
+          <ul>
+            <li>AMZ implementation</li>
+            <li>S3 consistency</li>
+            <li>Easy setup</li>
+          </ul>
+        </section>
+        
+
+	      <section>
+          <h2>Private clusters - account organization</h2>
+          <p>(reload to resize)</p>
+	        <div class="mermaid">
+            graph LR;
+            
+            subgraph spt-data-box Amazon account
+            s3((private data))
+            end
+            subgraph some-part-of-schibsted Amazon account
+            subgraph EMR cluster
+            creds2["data-box creds"]
+            slaves2["slaves{n}"] == r/w ==> s3
+            master2["master"]
+            end
+            end
+            subgraph spt-data-analytics-dev Amazon account
+            subgraph EMR cluster
+            creds["data-box creds"]
+            slaves["slaves{n}"] == r/w ==> s3
+            master
+            end
+            end
+            subgraph laptop
+            end
+          </div>
+         </section>
+
+        <section>
+          <h2>Remember privacy!</h2>
+          <ul>
+            <li>red/yellow/green distinction</li>
+            <li>NEVER copy red data to your laptop!</li> 
+            <li>NEVER copy * data to your laptop!</li> 
+          </ul>
+        </section>
+
+        <section>
+          <h2>Tooling</h2>
+          <ul>
+            <li>Knox - in-house cluster access wrapper</li>
+            <li>Zeppelin - notebook system</li>
+            <li>Proxy - Foxyproxy w/socks for Hadoop mgmt access</li>
+            <li>VPN - spt-data-analytics-dev access method</li>
+          </ul>
+        </section>
+
+        <section>
+          <section>
+            <h2>Knox - what it is</h2>
+            <ul>
+              <li>Configuration as code</li>
+              <li>Updates itself from GHE</li>
+              <li>No releases, rapidly changing</li>
+              <li>Join #spt-data-knox</li>
+            </ul>
+          </section>
+          <section>
+            <h2>Knox - what we expect</h2>
+            <ul>
+              <li>Keep an eye on #spt-data-knox</li>
+              <li>Report bugs to the channel (we don't have a ticket system yet)</li>
+            </ul>
+          </section>
+
+	        <section>
+	          <h2>Preparations - install knox</h2>
+            <pre><code class="bash">
+ $ git clone git@github.schibsted.io:spt/schibsted.git
+ ...
+ $ schibsted/data/tools/knox/install-knox
+ $ .  ~/.bashrc
+ $ knox -help
+            </code></pre>
+	        </section>
+	        <section>
+	          <h2>Preparations - configure knox</h2>
+            <pre><code class="bash">
+ $ ssh-keygen # if you don't already have one              
+ $ knox setuser -username alexanderkjeldaas \
+  -identity id_rsa
+            </code></pre>
+	        </section>
+
+	           <section>
+	             <h2>Preparations - install development environment</h2>
+               <pre><code class="bash">
+ $ knox install devenv # optional
+               </code></pre>
+	           </section>
+
+	           <section>
+	             <h2>Preparations - configure aws</h2>
+               <pre><code class="bash">
+ $ aws configure -profile databox
+ ...
+ $ aws configure -profile knox # or -profile default
+ ...
+               </code></pre>
+	           </section>
+             
+	           <section>
+	             <h2>Preparations - test knox</h2>
+               <pre><code class="bash">
+ $ knox cluster create -slaves 10 mycluster
+ ...
+ $ knox cluster list
+ $ knox spark-shell -spark-cluster mycluster
+ spark$ ^C
+ (after workshop: knox cluster destroy mycluster)
+               </code></pre>
+             </section>
+          </section>
+
+          <section>
+	          <h2>Interlude: Old EMR clusters.</h2>
+	          <ul>
+	            <li>Old setup production: Role-based, stateful clusters.</li>
+	            <li>Old setup development: Role-based, stateful clusters.</li>
+	            <li>Current setup production: Role-based, stateful clusters.</li>
+	            <li>Current setup development: Personal key-based, ephemeral clusters.</li>
+	          </ul>
+          </section>
+
+          <section>
+	          <section>
+	            <h2>Let's use some electricity!</h2>
+              <pre><code class="bash">
+ $ knox spark-shell -spark-cluster mycluster \
+ -executors 20 -memory 10G
+              </code></pre>
+              The executors and memory arguments are needed for now<br />
+              (probably not needed by EOW)<br />
+            </section>
+	          <section>
+	            <h2>Let's use some electricity!</h2>
+
+	            <pre class=fragment><code class="scala" data-trim contenteditable>
+                  &raquo; def blocket(month: Int, day: Int) =
+                  ("s3://schibsted-spt-common-prod/" ++
+                   "red/blocket/event-tracking/behavior/coalesced/" ++
+                   f"2015/$month%02d/$day%02d/")
+              </code></pre>
+
+              <pre class=fragment><code class="scala" data-trim contenteditable>
+     &raquo; val blocket1 = sqlContext.read.json(blocket(8, 30))
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+&raquo; blocket1.printSchema
+&raquo; blocket1.count
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+res1: Long = 15697988
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+    &raquo; blocket1.select($"actor.spt:environmentId").distinct.count
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+    res2: Long  = 572699
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+    &raquo; blocket1.select("spt:pageViewId").distinct.count
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+    res3: Long = 15636559
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+    &raquo; blocket1.select("@id").distinct.count
+</code></pre>
+<pre class=fragment><code class="scala" data-trim contenteditable>
+    res4: Long = 15636745
+</code></pre>
+</section>
+
+<section>
+	<h2>Hold on! 15636559 != 15636745</h2>
+  <pre class=fragment><code class="scala" data-trim contenteditable>
+&raquo;  val dups = blocket1.groupBy($"@id").count.filter($"count" > 1)
+&raquo;  dups.count
+	</code></pre>
+
+  <pre class=fragment><code class="scala" data-trim contenteditable>
+      res5: Long = 59770
+	</code></pre>
+
+  <pre class=fragment><code class="scala" data-trim contenteditable>
+&raquo; val weirds = blocket1.as('blocket).join(dups.as('dups))
+                     .where($"blocket.@id" === $"dups.@id")
+&raquo; weirds.count
+	</code></pre>
+
+  <pre class=fragment><code class="scala" data-trim contenteditable>
+res6: Long = 121013
+	</code></pre>
+
+  <pre class=fragment><code class="scala" data-trim contenteditable>
+&raquo; val sample = weirds.sample(false, 50.0/120000)
+&raquo; sample.select($"@id", $"object.url", $"object.displayName") show
+	</code></pre>
+</section>
+
+          <section>
+	<h2>Hold on! 15636559 != 15636745</h2>
+            <pre>
+|urn:blocket.se:pa...|http://www.blocke...|TV-Bänk | Västern...|
+|urn:blocket.se:pa...|http://www.blocke...|Chevrolet Silvera...|
+|urn:blocket.se:pa...|http://www.blocke...|Volvo 960 3.0 119...|
+|urn:blocket.se:pa...|http://www.blocke...|Iveco daily | Öst...|
+|urn:blocket.se:pa...|http://www.blocke...|Sida 8 | Angränsa...|
+|urn:blocket.se:pa...|http://www.blocke...|Örebro > Bilar | ...|
+|urn:blocket.se:pa...|http://www.blocke...|Polaris RMK 700 -...|
+|urn:blocket.se:pa...|http://www.blocke...|Angränsande län t...|
+|urn:blocket.se:pa...|http://www.blocke...|   Uppsala | Blocket|
+|urn:blocket.se:pa...|http://www.blocke...|Sida 2 | Skåne | ...|
+|urn:blocket.se:pa...|http://www.blocke...|Angränsande län t...|
+|urn:blocket.se:pa...|http://www.blocke...|Skåne > Skogs- & ...|
+|urn:blocket.se:pa...|http://www.blocke...|Peugeot j5 tdi ho...|
+|urn:blocket.se:pa...|http://www.blocke...|Sida 2 | Hela Sve...|
+|urn:blocket.se:pa...|http://www.blocke...|Volvo V50 Summum ...|
+|urn:blocket.se:pa...|http://www.blocke...|Göteborg > Husger...|
+|urn:blocket.se:pa...|http://www.blocke...|Plan B skateboard...|
+|urn:blocket.se:pa...|http://www.blocke...|Sida 2 | Norrbott...|
+|urn:blocket.se:pa...|http://www.blocke...|Vw Lupo 1.4 / Nyb...|
+|urn:blocket.se:pa...|http://www.blocke...| Stockholm | Blocket|
+              </pre>
+            </section>
+          </section>
+
+<section>
+  <section>
+    <h2>Inspect our hadoop cluster</h2>
+	  <pre><code class="bash" data-trim contenteditable>
+        $ knox cluster ui hadoop-resource-manager mycluster
+	  </code></pre>
+    AND ((SOCKS AND FoxyProxy) OR VPN)
+  </section>
+  <section>
+    <h2>Infrastructure VPN</h2>
+    <ul>
+      <li>Get credentials and config from Infrastructure</li>
+      <li>OpenVPN based, use Tunnelblick on OS X</li>
+      <li>Connect</li>
+    </ul>
+  </section>
+  <section>
+    <h2>SOCKS + FoxyProxy</h2>
+	  <pre><code class="bash" data-trim contenteditable>
+        $ knox experimental socks -spark-cluster mycluster
+	  </code></pre>
+    <span class="fragment"><img src="a.png"></span>
+  </section>
+
+  <section>
+    <h2>SOCKS + FoxyProxy</h2>
+    <img src="b.png">
+  </section>
+
+  <section>
+    <h2>Inspect our hadoop cluster</h2>
+    <img src="c.png">
+  </section>
+
+  <section>
+    <h2>Inspect spark</h2>
+    <img src="d.png">
+  </section>
+</section>
+
+<section>
+  <section>
+    <h2>spt/schibsted repo & assemblies</h2>
+            <pre class=fragment><code class="bash">
+ $ git clone git@github.schibsted.io:spt/schibsted.git
+ ...
+            </code></pre>
+            <pre class=fragment><code class="bash">
+ $ cd schibsted/data
+ $ knox install devenv # now it's required
+ ...
+            </code></pre>
+            <p class=fragment>Then edit ~/.sbt/ada-credentials to match this:</p>
+            <pre class=fragment><code class="bash">
+$ cat ~/.sbt/ada-credentials
+realm=Sonatype Nexus Repository Manager
+host=repo.schbstd.com
+user=deployment
+password=inflames
+
+            </code></pre>
+  </section>
+  <section>
+    <h2>spt/schibsted repo & assemblies</h2>
+            <pre class=fragment><code class="bash">
+ $ sbt
+ ...
+            </code></pre>
+            <pre class=fragment><code class="bash">
+sbt&raquo; projects
+              </code>
+              <pre class="fragment"><code class="bash">
+[info] In file:/Users/alekje/code/schibsted/data/
+[info] 	   commons
+[info] 	   core
+[info] 	 * data
+[info] 	   data-science-evaluation
+[info] 	   data-science-preprocessing
+[info] 	   data-science-utils
+[info] 	   metrics
+[info] 	   pipeline
+[info] 	   quality-profiling
+[info] 	   quality-screening
+[info] 	   spark
+[info] 	   spid-profile-s3-sync
+[info] 	   test
+[info] 	   user-profiling
+              </code></pre>
+            </pre>
+  </section>
+  <section>
+    <h2>spt/schibsted repo & assemblies</h2>
+            <pre class=fragment><code class="bash">
+    sbt&raquo; project user-profiling
+            </code></pre>
+            <pre class=fragment><code class="bash">
+    sbt&raquo; assembly
+            </code></pre>
+            <pre class=fragment><code class="bash">
+                ...
+[info] SHA-1: 0f5a8b2d0522bae47bdf9ae147beff67fa992fca
+[info] Packaging /Users/alekje/code/schibsted/data/user-profiling/target/userprofiling-assembly-0.0.1-SNAPSHOT.jar ...
+[info] Done packaging.
+[success] Total time: 130 s, completed 2015-sep-01 13:05:06
+            </code></pre>
+            <pre class=fragment><code class="bash">
+$ knox spark-shell -spark-cluster mycluster \
+  -assembly /Users/alekje/code/schibsted/data/user-profiling/target/userprofiling-assembly-0.0.1-SNAPSHOT.jar
+            </code></pre>
+	</section>
+  <section>
+            <pre class=fragment><code class="bash">
+ 
+def blocket(month: Int, day: Int) =
+  ("s3://schibsted-spt-common-prod/" ++
+   "red/blocket/event-tracking/behavior/coalesced/" ++
+   f"2015/$month%02d/$day%02d/")
+
+val events = sqlContext.read.json(blocket(8, 30))
+            </code></pre>
+    <h2>From <a href="https://confluence.schibsted.io/pages/viewpage.action?spaceKey=DATA&title=Tutorial+8%3A+Feature+Extraction+by+Category+Counting">Carl's tutorial #8</a></h2>
+            <pre class=fragment><code class="bash">
+import eu.bitwalker.useragentutils.UserAgent
+import org.apache.spark.sql.functions._
+
+val getDeviceType = udf((userAgentString: String) => {
+    val ua = UserAgent.parseUserAgentString(userAgentString)
+    ua.getOperatingSystem.getDeviceType.getName
+})
+ 
+val usersAndDeviceType = events.
+    select(col("actor.spt:environmentId"), getDeviceType(col("actor.spt:userAgent")).as("deviceType"))
+            </code></pre>
+
+  </section>
+  <section>
+            <pre class=fragment><code class="bash">
+usersAndDeviceType.show()
+            </code></pre>
+            <pre class=fragment><code class="bash">
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|    Mobile|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|    Mobile|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|    Tablet|
+|urn:schibsted.com...|    Mobile|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|    Tablet|
+|urn:schibsted.com...|    Mobile|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|  Computer|
+|urn:schibsted.com...|    Tablet|
+|urn:schibsted.com...|    Mobile|
+|urn:schibsted.com...|  Computer|
+            </code></pre>
+  </section>
+  <section>
+            <pre class=fragment><code class="bash">
+import com.schibsted.datascience.preprocessing.CategoryCounter
+ 
+val counter = new CategoryCounter().
+     setKeyColumn("spt:environmentId").
+     setCategoryColumns(Seq("deviceType"))
+ 
+val categoryCounter = counter.fit(usersAndDeviceType)
+val deviceTypeCounts = categoryCounter.transform(usersAndDeviceType)
+            </code></pre>
+            <pre class=fragment><code class="bash">
+deviceTypeCounts.printSchema
+            </code></pre>
+            <pre class=fragment><code class="bash">
+root
+ |- spt:environmentId: string (nullable = true)
+ |- COUNT(deviceType=Computer): long (nullable = false)
+ |- COUNT(deviceType=Game console): long (nullable = false)
+ |- COUNT(deviceType=Mobile): long (nullable = false)
+ |- COUNT(deviceType=Tablet): long (nullable = false)
+ |- COUNT(deviceType=Unknown): long (nullable = false)
+            </code></pre>
+  </section>
+  <section>
+            <pre class=fragment><code class="bash">
+deviceTypeCounts.show()
+            </code></pre>
+            <pre class=fragment><code class="bash">
+|urn:schibsted.com...|                         0|                             0|                      18|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                      50|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                      33|                       0|                        0|
+|urn:schibsted.com...|                        28|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                      36|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                      39|                       0|                        0|
+|urn:schibsted.com...|                        14|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         1|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                       0|                       1|                        0|
+|urn:schibsted.com...|                        60|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                       1|                       0|                        0|
+|urn:schibsted.com...|                        52|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         6|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         4|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                      13|                       0|                        0|
+|urn:schibsted.com...|                        17|                             0|                       0|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                       1|                       0|                        0|
+|urn:schibsted.com...|                         0|                             0|                       0|                      27|                        0|
+|urn:schibsted.com...|                         9|                             0|                       0|                       0|                        0|
+            </code></pre>
+  </section>
+</section>
+
+<section>
+	<h2>Not covered:</h2>
+	<ol>
+	  <li>Batch jobs.</li>
+	  <li>Zeppelin.</li>
+	  <li>Data frames tutorial.</li>
+	  <li>++</li>
+	</ol>
+</section>
+
+<section>
+	<h2>THE END</h2>
+  <ul>
+    <li><a href="https://confluence.schibsted.io/display/DATA/Spark+Tutorials">Spark tutorials from DATA team</a></li>
+    <li>#spark, #spt-tracking (specific to tracking), #spt-data-knox
+  </ul>
+</section>
+-->
+
+</div>
+
+</div>
+
+		<script src="https://cdn.jsdelivr.net/reveal.js/3.0.0/lib/js/head.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/reveal.js/3.0.0/js/reveal.js"></script>
+
+		<script>
+
+			// Full list of configuration options available at:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// Optional reveal.js plugins
+				dependencies: [
+					{ src: 'https://cdn.jsdelivr.net/reveal.js/3.0.0/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'https://cdn.jsdelivr.net/reveal.js/3.0.0/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'https://cdn.jsdelivr.net/reveal.js/3.0.0/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'https://cdn.jsdelivr.net/reveal.js/3.0.0/plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'https://cdn.jsdelivr.net/reveal.js/3.0.0/plugin/zoom-js/zoom.js', async: true },
+					{ src: 'https://cdn.jsdelivr.net/reveal.js/3.0.0/plugin/notes/notes.js', async: true }
+				]
+			});
+
+		</script>
+	</body>
+</html>

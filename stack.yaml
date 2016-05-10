@@ -1,3 +1,7 @@
 packages:
 - '.'
 resolver: nightly-2016-05-08
+image:
+  containers:
+    - base: "fpco/stack-build"
+#    - base: "stack-base:custom"

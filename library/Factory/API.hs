@@ -20,15 +20,24 @@ import qualified Factory.Types.Widget as Widget
     documentation for the documentation itself.
 -}
 type API
-    = GetMarkdown
-    :<|> GetJavaScript
-    :<|> DocumentedAPI
+    = GetPresentation
+      :<|> GetMarkdown
+      :<|> GetJavaScript
+      :<|> GetAngular
+      :<|> GetAngularService
+      :<|> GetSwagger
+      :<|> DocumentedAPI
 
 {- |
     A value-level proxy for the type-level API.
 -}
 api :: Proxy.Proxy API
 api = Proxy.Proxy
+
+{- |
+    Get the presentation.
+-}
+type GetPresentation = "slides" :> Raw
 
 {- |
     Get the Markdown documentation.
@@ -40,6 +49,15 @@ type GetMarkdown = "markdown"
     Get the JavaScript client code.
 -}
 type GetJavaScript = "javascript"
+    :> Servant.Get '[MIME.JavaScript] Text.Text
+
+type GetAngular = "angular"
+    :> Servant.Get '[MIME.JavaScript] Text.Text
+
+type GetAngularService = "angular-service"
+    :> Servant.Get '[MIME.JavaScript] Text.Text
+
+type GetSwagger = "swagger"
     :> Servant.Get '[MIME.JavaScript] Text.Text
 
 {- |

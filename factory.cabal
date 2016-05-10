@@ -26,24 +26,27 @@ library
         Factory.JavaScript
         Factory.Markdown
         Factory.Server
+        Factory.Swagger
         Factory.Types.Widget
-    build-depends:
-        aeson,
-        base,
-        bytestring,
-        either,
-        http-media,
-        safe,
-        servant,
-        servant-client,
-        servant-docs,
-        servant-js,
-        servant-server,
-        stm,
-        text,
-        transformers,
-        wai,
-        warp
+    build-depends:aeson,
+                  base,
+                  bytestring,
+                  either,
+                  http-client,
+                  http-media,
+                  safe,
+                  servant,
+                  servant-client,
+                  servant-docs,
+                  servant-js,
+                  servant-server,
+                  servant-swagger,
+                  stm,
+                  swagger2,
+                  text,
+                  transformers,
+                  wai,
+                  warp
     default-language: Haskell2010
     hs-source-dirs: library
     ghc-options: -Wall
@@ -51,8 +54,10 @@ library
 executable factory
     main-is: Main.hs
     build-depends:
-        base -any,
-        factory -any
+                  base -any,
+                  factory -any,
+                  http-client,
+                  swagger2
     default-language: Haskell2010
     hs-source-dirs: executable
     ghc-options: -threaded -Wall

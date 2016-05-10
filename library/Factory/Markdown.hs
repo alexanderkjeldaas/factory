@@ -20,11 +20,8 @@ import qualified Servant.Docs as Servant
 markdown :: String
 markdown = Servant.markdown (Servant.docs API.documentedAPI)
 
-instance Servant.ToSample Widget.Widget Widget.Widget where
-    toSample _ = Just Widget.Widget { Widget.name = "Apple" }
-
-instance Servant.ToSample [Widget.Widget] [Widget.Widget] where
-    toSample _ = Just
+instance Servant.ToSample Widget.Widget where
+    toSamples _ = Servant.samples
         [ Widget.Widget { Widget.name = "Apple" }
         , Widget.Widget { Widget.name = "Banana" }
         ]

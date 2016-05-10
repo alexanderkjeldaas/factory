@@ -24,6 +24,7 @@ import           Network.Wai                as Wai
 server :: Servant.Server API.API
 server
     = getPresentation
+    :<|> getCode
     :<|> getMarkdown
     :<|> getJQuery
     :<|> getAngular
@@ -47,6 +48,8 @@ type Handler a = Except.ExceptT Servant.ServantErr IO a
 -}
 getPresentation :: Wai.Application
 getPresentation = StaticFiles.serveDirectory "/var/www"
+getCode :: Wai.Application
+getCode = StaticFiles.serveDirectory "/var/code"
 
 {- |
     Get the Markdown documentation. See 'Markdown.markdown'.

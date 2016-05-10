@@ -21,6 +21,7 @@ import qualified Factory.Types.Widget as Widget
 -}
 type API
     = GetPresentation
+      :<|> GetCode
       :<|> GetMarkdown
       :<|> GetJavaScript
       :<|> GetAngular
@@ -38,6 +39,11 @@ api = Proxy.Proxy
     Get the presentation.
 -}
 type GetPresentation = "slides" :> Raw
+
+{- |
+    Get the code.
+-}
+type GetCode = "code" :> Raw
 
 {- |
     Get the Markdown documentation.

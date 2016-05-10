@@ -5,6 +5,9 @@ api:
     - LETSENCRYPT_HOST=
     - LETSENCRYPT_EMAIL=
   command: /usr/local/bin/factory
+  volumes:
+    - ./docs:/var/www
+    - .:/var/code
   ports:
     - "8080"
 nginxproxy:

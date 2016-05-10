@@ -9,6 +9,7 @@ import qualified Control.Concurrent.STM as STM
 import qualified Factory.Types.Widget as Widget
 import qualified Safe
 import qualified System.IO.Unsafe as Unsafe
+import qualified Data.Text as Text
 
 {- |
     Our database. It doesn't hold much.
@@ -22,7 +23,7 @@ data Database = Database
 -}
 defaultDatabase :: Database
 defaultDatabase = Database
-    { widgets = []
+    { widgets = [Widget.Widget $ Text.pack "test widget"]
     }
 
 {- |

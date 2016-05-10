@@ -4,7 +4,7 @@
 module Factory.JavaScript where
 
 import qualified Factory.API as API
-import qualified Servant.JQuery as Servant
+import qualified Servant.JS.JQuery as Servant
 
 {- |
     Generate some JavaScript that will use jQuery to talk to the API.
